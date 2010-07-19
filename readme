@@ -1,1 +1,20 @@
-TODO
+About
+
+This is the online Git repository of the Shaevitz Lab:
+<http://github.com/shaevitz/shaevitzlab/>
+
+We also have a info website on Google sites:
+<http://sites.google.com/site/shaevitzlab/>
+
+License
+
+All code uploaded to this Git repository is free software licensed under the
+GNU General Public License v2. Most of the files are MATLAB (*.m) files written
+by ourselves. There are also some other files from the MATLAB File Exchange;
+these are either under the new BSD license or public domain.
+
+Contact
+
+Joshua Shaevitz
+shaevitz [at] princeton [dot] edu
+<http://sites.google.com/site/jshaevitz/>
