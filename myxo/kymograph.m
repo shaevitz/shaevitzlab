@@ -524,6 +524,8 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
   endpts = [];
 
+  col_size = 100;
+
   % Accept user input
   axes(GUI.InputGraph);
   innerpt = round(ginput(1));
@@ -555,8 +557,8 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     pre_img = double(imread(fullfile(Metadata.Directory, strcat(name, '.preprocessed.tif')), 'TIFF'));
     pre_img = pre_img./max(pre_img(:));
 
-    figure
-    imagesc(pre_img)
+%     figure
+%     imagesc(pre_img)
 
     [pre_mask T] = iterthresh(pre_img);
     pre_img = pre_img > 2*T;
@@ -608,8 +610,8 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     w = max(U)-min(U)+1;
     h = max(V)-min(V)+1;
 
-    figure
-    imagesc(mask)
+%     figure
+%     imagesc(mask)
 
     retract = bwmorph(mask, 'thin', Inf);
     ends = bwmorph(retract, 'endpoints');
@@ -618,143 +620,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
 %     figure
 %     imagesc(mask+retract+ends)
-
-    % ---
-    % The old method:
-
-%     full_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name), 'TIFF'));
-%     scaled_image = full_image(y:y+h-1,x:x+w-1);
-%     scaled_image = scaled_image/max(scaled_image(:));
-%     se = strel('disk', 5);
-%     scaled_image = imtophat(scaled_image, se);
-% %    scaled_image = scaled_image-double(uniBackGround(scaled_image, 10));
-%     scaled_image = (scaled_image-mean2(scaled_image))/std(scaled_image(:));
-% %    scaled_image = abs(filter2(circle10, scaled_image));
-% %    scaled_image = stand(scaled_image);
-%     dic_image = abs(scaled_image-mean2(scaled_image));
-%
-%     full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
-%     scaled_image = full_image(y:y+h-1,x:x+w-1);
-%     scaled_image = scaled_image/max(scaled_image(:));
-%     scaled_image = (scaled_image-median(scaled_image(:)))/std(scaled_image(:));
-% %    scaled_image = abs(filter2(circle10, scaled_image));
-% %    scaled_image = stand(scaled_image);
-%     yfp_image = scaled_image;
-%
-%     full_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
-%     scaled_image = full_image(y:y+h-1,x:x+w-1);
-%     scaled_image = scaled_image/max(scaled_image(:));
-%     scaled_image = (scaled_image-median(scaled_image(:)))/std(scaled_image(:));
-% %    scaled_image = abs(filter2(circle10, scaled_image));
-% %    scaled_image = stand(scaled_image);
-%     red_image = scaled_image;
-%
-%     scaled_image = 3*dic_image+yfp_image+red_image;
-% %    se = strel('disk', 5);
-% %    scaled_image = imtophat(scaled_image, se);
-%     scaled_image = abs(filter2(circle10, scaled_image));
-% %    scaled_image = abs(scaled_image-mean(scaled_image(:)));
-%
-% %    mask = scaled_image;
-% %    mask = edge(mask, 'roberts')+edge(mask, 'sobel')+edge(mask, 'prewitt')+edge(mask, 'log');
-% %    mask = bwareaopen(mask > 0, 20);
-%
-%     % If it doesn't work the first time, throw more convex hulls at it.
-% %    contour = edge(mask, 'canny');
-% %    [v u] = find(mask > 0);
-% %    t = convhull(u, v);
-% %    for k = 1:length(t)-1
-% %      [x1 x2 x3 vv uu] = bresenham(mask, [u(t(k)) v(t(k)); u(t(k+1)) v(t(k+1))], 0);
-% %      for l = 1:length(uu)
-% %        mask(vv(l),uu(l)) = 1;
-% %      end
-% %    end
-% %    [x1 x2 x3 vv uu] = bresenham(mask, [u(t(1)) v(t(1)); u(t(end)) v(t(end))], 0);
-% %    for l = 1:length(uu)
-% %      mask(vv(l),uu(l)) = 1;
-% %    end
-%
-% %    figure;
-% %    imagesc(mask);
-%
-% %    mask = imfill(mask, 'holes');
-%
-% %    ends = bwmorph(mask, 'endpoints');
-% %    [v u] = find(ends > 0);
-% %    for k = 1:length(u)
-% %      mask = localclose(mask, [u(k) v(k)], 5);
-% %    end
-% %    mask = imfill(mask, 'holes');
-% %    mask = bwareaopen(mask, 70);
-% %    mask = bwmorph(mask, 'dilate', 3);
-%
-%     % Method 1: threshold
-%     mask = threshold(scaled_image, 450);
-%
-% %    figure;
-% %    imagesc(dic_image);
-% %
-% %    figure;
-% %    imagesc(yfp_image);
-% %
-% %    figure;
-% %    imagesc(red_image);
-% %
-% %    figure;
-% %    imagesc(mask.*scaled_image);
-% %
-% %    return
-%
-%     % Method 2: region growing
-%
-% %    ends = bwmorph(mask, 'endpoints');
-% %    [v u] = find(ends > 0);
-% %    for k = 1:length(u)
-% %      mask = localclose(mask, [u(k) v(k)], 30);
-% %    end
-% %    mask = bwmorph(mask, 'close');
-%
-%     pad = 10;
-%
-% %    mask = bwareaopen(mask, 10);
-% %    mask = bwmorph(mask, 'majority');
-%     mask = padarray(mask, [pad pad]);
-%     se = strel('disk', 8);
-%     mask = imclose(mask, se);
-%     se = strel('disk', 4);
-%     mask = imclose(mask, se);
-% %    se = strel('disk', 3);
-% %    mask = imclose(mask, se);
-% %    mask = bwmorph(mask, 'spur');
-% %    mask = mask(1+pad:end-pad,1+pad:end-pad);
-% %    mask = imfill(mask, 'holes');
-% %    mask = bwmorph(mask, 'erode', 2);
-%
-% %    figure;
-% %    imagesc(mask);
-%
-%     retract = bwmorph(mask, 'thin', Inf);
-%     ends = bwmorph(retract, 'endpoints');
-%     [v u] = find(ends > 0);
-%     for k = 1:length(u)
-%       retract = localclose(retract, [u(k) v(k)], 25);
-%     end
-%     retract = imfill(retract, 'holes');
-%     se = strel('disk', 5);
-%     retract = imclose(retract, se);
-%     retract = bwmorph(retract, 'thin', Inf);
-%     ends = bwmorph(retract, 'endpoints');
-%     [v u] = find(ends > 0);
-%     for k = 1:length(u)
-%       retract = localclose(retract, [u(k) v(k)], 25);
-%     end
-%     retract = imfill(retract, 'holes');
-% %    se = strel('disk', 2);
-% %    retract = imclose(retract, se);
-%     retract = bwmorph(retract, 'thin', Inf);
-%     retract = retract(1+pad:end-pad,1+pad:end-pad);
-%     ends = bwmorph(retract, 'endpoints');
-%     [v u] = find(ends > 0);
 
     if length(u) ~= 2
       [u v]
@@ -781,7 +646,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
       endpts = [endpts; u(1) v(1)];
     end
 
-    [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 15, 25, 5);
+    [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 5, 5, 5);
 
     % DEBUG
 %    figure;
@@ -793,7 +658,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
-    pixel_col = zeros(w+h, 1);
+    pixel_col = 600*ones(70, 1); % zeros(W+H, 1);
     for k = 1:num_pixels
       line = cell2mat(normals(1,k));
       pixels = double(impixel(scaled_image, line(:,1), line(:,2)));
@@ -801,23 +666,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     end
     head = 1;
     tail = num_pixels;
-    % zero-crossing correction (unused)
-%    norm_col = pixel_col(1:num_pixels);
-%    norm_col = norm_col-mean(norm_col);
-%    for k = 1:num_pixels
-%      if norm_col(k) > 0
-%        head = k;
-%        break;
-%      end
-%    end
-%    for k = num_pixels:-1:1
-%      if norm_col(k) > 0
-%        tail = k;
-%        break;
-%      end
-%    end
-%    head = max(1, head-padding);
-%    tail = min(num_pixels, tail+padding);
     yfp_map = [yfp_map pixel_col];
     yfp_heads = [yfp_heads head];
     yfp_tails = [yfp_tails tail];
@@ -825,7 +673,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
-    pixel_col = zeros(w+h, 1);
+    pixel_col = zeros(col_size, 1);
     for k = 1:num_pixels
       line = cell2mat(normals(1,k));
       pixels = double(impixel(scaled_image, line(:,1), line(:,2)));
@@ -833,31 +681,14 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     end
     head = 1;
     tail = num_pixels;
-    % zero-crossing correction (unused)
-%    norm_col = pixel_col(1:num_pixels);
-%    norm_col = norm_col-mean(norm_col);
-%    for k = 1:num_pixels
-%      if norm_col(k) > 0
-%        head = k;
-%        break;
-%      end
-%    end
-%    for k = num_pixels:-1:1
-%      if norm_col(k) > 0
-%        tail = k;
-%        break;
-%      end
-%    end
-%    head = max(1, head-padding);
-%    tail = min(num_pixels, tail+padding);
     red_map = [red_map pixel_col];
     red_heads = [red_heads head];
     red_tails = [red_tails tail];
     red_lengths = [red_lengths tail-head+1];
 
-    if (j/5 == round(j/5))
+%     if (j/5 == round(j/5))
       fprintf(1, 'Completed: %f%%...\n', 100*j/Metadata.NumYFPFiles);
-    end
+%     end
 
   end
 
@@ -866,7 +697,12 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   assert(yfp_length == red_length);
   target_length = min(yfp_length, red_length);
 
-  full_map = (yfp_map-min(yfp_map(:)))/(max(yfp_map(:))-min(yfp_map(:)))+(red_map-min(red_map(:)))/(max(red_map(:))-min(red_map(:)));
+%   figure; imagesc(yfp_map);
+%   figure; imagesc(red_map);
+
+  % TODO
+%   full_map = (yfp_map-min(yfp_map(:)))/(max(yfp_map(:))-min(yfp_map(:)))+(red_map-min(red_map(:)))/(max(red_map(:))-min(red_map(:)));
+  full_map = yfp_map;
   n = Metadata.NumYFPFiles;
   heads = yfp_heads;
   tails = yfp_tails;
@@ -874,22 +710,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   target_length
 
   [new_heads new_tails] = MapAlign(full_map, target_length, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-6, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-8, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-10, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-12, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-14, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-16, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-18, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-20, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-22, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-24, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-26, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-28, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-30, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-32, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-34, heads, tails, n);
-%   [heads tails] = MapAlign(full_map, target_length-36, heads, tails, n);
 
   yfp_heads = new_heads;
   red_heads = new_heads;
@@ -916,14 +736,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    end
 %    yfp_pixel_map = [yfp_pixel_map pixel_col(heads(j):tails(j))];
 %  end
-
-end
-
-function DICManualMap_Callback(hObject, eventdata, handles)
-  DICManualMap()
-end
-
-function DICManualMap()
 
 end
 
@@ -1138,22 +950,6 @@ function GenerateKymograph(pixels_cell)
     target_length
 
     [new_heads new_tails] = MapAlign(full_map, target_length, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-6, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-8, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-10, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-12, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-14, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-16, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-18, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-20, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-22, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-24, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-26, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-28, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-30, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-32, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-34, heads, tails, n);
-%     [heads tails] = MapAlign(full_map, target_length-36, heads, tails, n);
 
     yfp_heads = new_heads;
     red_heads = new_heads;
