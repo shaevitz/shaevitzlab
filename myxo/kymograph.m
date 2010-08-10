@@ -529,9 +529,14 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   % Accept user input
   axes(GUI.InputGraph);
   innerpt = round(ginput(1));
-  innerpt
+  innerpt(1) = innerpt(1)-x+1;
+  innerpt(2) = innerpt(2)-y+1;
 
   for j = 1:Metadata.NumYFPFiles
+
+    [path name ext vrsn] = fileparts(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name));
+
+    fprintf('Analyzing %d/%d: %s\n', j, Metadata.NumYFPFiles, strcat(name, '.preprocessed.tif'));
 
     % ---
     % The new method:
@@ -553,27 +558,29 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
     % Over-threshold the preprocessed image mask a little to distinguish
     % contiguous cells
-    [path name ext vrsn] = fileparts(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name));
     pre_img = double(imread(fullfile(Metadata.Directory, strcat(name, '.preprocessed.tif')), 'TIFF'));
-    pre_img = pre_img./max(pre_img(:));
+%     pre_img = pre_img./max(pre_img(:));
+    pre_mask = pre_img(y:y+h-1,x:x+w-1);
 
-%     figure
-%     imagesc(pre_img)
+%     [h w]
+%     size(pre_mask)
 
-    [pre_mask T] = iterthresh(pre_img);
-    pre_img = pre_img > 2*T;
-    pre_img = bwmorph(pre_img, 'spur');
-    pre_img = bwmorph(pre_img, 'majority');
+%     [pre_mask T] = iterthresh(pre_mask);
+%     pre_img = pre_img >= 0.9*T;
+    pre_mask = threshold(pre_mask, 300);
+
+%     figure; imagesc(pre_img);
 
     % Find the nearest connected component
-    cc = bwconncomp(pre_img);
+    cc = bwconncomp(pre_mask);
     index = 0;
     if j == 1
       norms = zeros(1,numel(cc.PixelIdxList));
       for k = 1:numel(cc.PixelIdxList)
         pixels = cell2mat(cc.PixelIdxList(k));
-        U = ceil(pixels/512);
-        V = 1 + mod(pixels, 512);
+        U = ceil(pixels/w);
+        V = mod(pixels, h);
+        V(V == 0) = h;
 %         point = 512*(innerpt(1)-1)+innerpt(2);
         norms(k) = (innerpt(1)-round(mean(U))).^2 + (innerpt(2)-round(mean(V))).^2;
 %         if numel(intersect(point, pixels)) > 0
@@ -586,48 +593,81 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
       centroid = [round(mean(U)) round(mean(V))];
       for k = 1:numel(cc.PixelIdxList)
         pixels = cell2mat(cc.PixelIdxList(k));
-        U = ceil(pixels/512);
-        V = 1 + mod(pixels, 512);
-        norms(k) = (innerpt(1)-round(mean(U))).^2 + (innerpt(2)-round(mean(V))).^2;
+        U = ceil(pixels/w);
+        V = mod(pixels, h);
+        V(V == 0) = h;
+        norms(k) = (centroid(1)-round(mean(U))).^2 + (centroid(2)-round(mean(V))).^2;
       end
       index = find(norms == min(norms));
     end
 
     % Generate a mask
     pixels = cell2mat(cc.PixelIdxList(index));
-    U = ceil(pixels/512);
-    V = 1 + mod(pixels, 512);
-    mask = zeros(max(V)-min(V)+1,max(U)-min(U)+1);
+    u = ceil(pixels/w);
+    v = mod(pixels, h);
+    v(v == 0) = h;
+    mask = zeros(h,w);
 %     for k = 1:numel(pixels)
 %       mask(V(k)) = 1;
 %     end
-    for k = 1:numel(U)
-      mask(V(k)-min(V)+1,U(k)-min(U)+1) = 1;
+    for k = 1:numel(u)
+%       mask(v(k),u(k)) = 1;
+      mask(pixels(k)) = 1;
     end
+    mask = bwmorph(mask, 'spur');
+    mask = bwmorph(mask, 'majority');
 
-    x = min(U);
-    y = min(V);
-    w = max(U)-min(U)+1;
-    h = max(V)-min(V)+1;
+%     x = min(U);
+%     y = min(V);
+%     w = max(U)-min(U)+1;
+%     h = max(V)-min(V)+1;
 
-%     figure
-%     imagesc(mask)
+%     figure; imagesc(mask);
+
+    mask = bwmorph(mask, 'erode');
+    mask = bwmorph(mask, 'erode');
+%     mask = mask.*pre_mask;
+%     size(mask)
 
     retract = bwmorph(mask, 'thin', Inf);
+    mask = bwmorph(mask, 'thicken', 3);
+    retract = bwmorph(mask, 'thin', Inf);
+%     ends = bwmorph(retract, 'endpoints');
+%     [v u] = find(ends > 0);
+
+    % Smoothing
+    pad = 10;
+    mask = padarray(mask, [pad pad]);
+    se = strel('disk', 8);
+    mask = imclose(mask, se);
+    se = strel('disk', 4);
+    mask = imclose(mask, se);
+    retract = bwmorph(mask, 'thin', Inf);
     ends = bwmorph(retract, 'endpoints');
-    mask = bwmorph(retract, 'dilate', 5);
+    [v u] = find(ends > 0);
+    for k = 1:length(u)
+      retract = localclose(retract, [u(k) v(k)], 25);
+    end
+    retract = imfill(retract, 'holes');
+    se = strel('disk', 5);
+    retract = imclose(retract, se);
+    retract = bwmorph(retract, 'thin', Inf);
+    for k = 1:length(u)
+      retract = localclose(retract, [u(k) v(k)], 25);
+    end
+    retract = imfill(retract, 'holes');
+    retract = bwmorph(retract, 'thin', Inf);
+    retract = retract(1+pad:end-pad,1+pad:end-pad);
+    mask = mask(1+pad:end-pad,1+pad:end-pad);
+    ends = bwmorph(retract, 'endpoints');
     [v u] = find(ends > 0);
 
-%     figure
-%     imagesc(mask+retract+ends)
+%     figure; imagesc(mask+retract+ends);
 
-    if length(u) ~= 2
-      [u v]
-      figure;
-      imagesc(mask);
-      figure;
-      imagesc(retract);
-    end
+%     if length(u) ~= 2
+%       [u v]
+%       figure; imagesc(mask+retract);
+%     end
     assert(2 <= length(u));
 
     % find the closest endpoints to the previous endpoint
@@ -646,19 +686,20 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
       endpts = [endpts; u(1) v(1)];
     end
 
-    [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 5, 5, 5);
+%     endpts(j,:)
+
+    [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 15, 25, 15);
 
     % DEBUG
-%    figure;
-%    imagesc(mask(1+pad:end-pad,1+pad:end-pad)+extend);
-
+%    figure; imagesc(mask(1+pad:end-pad,1+pad:end-pad)+extend);
 %    padding = 15;
 
     num_pixels = length(normals);
+%     num_pixels
 
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
-    pixel_col = 600*ones(70, 1); % zeros(W+H, 1);
+    pixel_col = zeros(w+h, 1);
     for k = 1:num_pixels
       line = cell2mat(normals(1,k));
       pixels = double(impixel(scaled_image, line(:,1), line(:,2)));
@@ -673,7 +714,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
-    pixel_col = zeros(col_size, 1);
+    pixel_col = zeros(w+h, 1);
     for k = 1:num_pixels
       line = cell2mat(normals(1,k));
       pixels = double(impixel(scaled_image, line(:,1), line(:,2)));
@@ -686,10 +727,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     red_tails = [red_tails tail];
     red_lengths = [red_lengths tail-head+1];
 
-%     if (j/5 == round(j/5))
-      fprintf(1, 'Completed: %f%%...\n', 100*j/Metadata.NumYFPFiles);
-%     end
-
   end
 
   yfp_length = min(yfp_lengths);
@@ -697,19 +734,35 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   assert(yfp_length == red_length);
   target_length = min(yfp_length, red_length);
 
-%   figure; imagesc(yfp_map);
-%   figure; imagesc(red_map);
+  figure; imagesc(yfp_map);
+  figure; imagesc(red_map);
 
   % TODO
-%   full_map = (yfp_map-min(yfp_map(:)))/(max(yfp_map(:))-min(yfp_map(:)))+(red_map-min(red_map(:)))/(max(red_map(:))-min(red_map(:)));
-  full_map = yfp_map;
+  full_map = (yfp_map-min(yfp_map(:)))/(max(yfp_map(:))-min(yfp_map(:)))+(red_map-min(red_map(:)))/(max(red_map(:))-min(red_map(:)));
+%   full_map = yfp_map;
   n = Metadata.NumYFPFiles;
   heads = yfp_heads;
   tails = yfp_tails;
 
-  target_length
+%   target_length
 
   [new_heads new_tails] = MapAlign(full_map, target_length, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-6, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-8, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-10, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-12, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-14, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-16, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-18, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-20, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-22, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-24, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-26, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-28, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-30, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-32, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-34, heads, tails, n);
+  [heads tails] = MapAlign(full_map, target_length-36, heads, tails, n);
 
   yfp_heads = new_heads;
   red_heads = new_heads;
@@ -995,7 +1048,7 @@ function [heads tails] = MapAlign(pixel_map, target_length, heads, tails, n)
     this_length = tails(j)-heads(j)+1;
     len_diff = this_length-target_length;
     if len_diff > 0
-      [j heads(j) tails(j)]
+%       [j heads(j) tails(j)]
       ldiffs = [];
 %      rdiffs = [];
       last_col = new_pixel_map(:,j-1);
@@ -1031,7 +1084,7 @@ function [heads tails] = MapAlign(pixel_map, target_length, heads, tails, n)
 %        heads(j) = new_head;
 %        tails(j) = new_tail;
 %      end
-      [j heads(j) tails(j)]
+%       [j heads(j) tails(j)]
     end
     new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
   end
@@ -1355,17 +1408,13 @@ end
 % the shape of the retract.
 function DICFrameMap_Callback(hObject, eventdata, handles)
   % Find framewise retracts of a cell using correlation and edge detection
-  i = 1
-%   for i = 1:ROI.N
+%   i = 1;
+  for i = 1:ROI.N
 
-%     x = round(ROI.Rects(4*i-3));
-%     y = round(ROI.Rects(4*i-2));
-%     w = round(ROI.Rects(4*i-1));
-%     h = round(ROI.Rects(4*i));
-    x = 0;
-    y = 0;
-    w = 0;
-    h = 0;
+    x = round(ROI.Rects(4*i-3));
+    y = round(ROI.Rects(4*i-2));
+    w = round(ROI.Rects(4*i-1));
+    h = round(ROI.Rects(4*i));
 
     assert(Metadata.NumYFPFiles == Metadata.NumRedFiles);
     fprintf(1, 'Starting DIC framewise map...\n');
@@ -1441,7 +1490,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     fprintf(1, 'Done.\n');
     toc;
 
-%   end
+  end
 end
 
 % ---
