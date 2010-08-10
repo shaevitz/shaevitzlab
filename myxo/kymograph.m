@@ -572,12 +572,12 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %     [h w]
 %     size(pre_mask)
 
-    [asdf T] = iterthresh(pre_mask);
-    pre_mask = pre_mask >= 0.9*T;
-    pre_mask = bwareaopen(pre_mask, 300);
-%     pre_mask = threshold(pre_mask, 300);
+%     [asdf T] = iterthresh(pre_mask);
+%     pre_mask = pre_mask >= 0.9*T;
+%     pre_mask = bwareaopen(pre_mask, 300);
+    pre_mask = threshold(pre_mask, 300);
     pre_mask = bwmorph(pre_mask, 'erode', 2);
-    pre_mask = bwareaopen(pre_mask, 50);
+%     pre_mask = bwareaopen(pre_mask, 50);
 
 %     figure; imagesc(pre_mask);
 
