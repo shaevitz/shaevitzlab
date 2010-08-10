@@ -53,24 +53,25 @@ Metadata.DICOffset = 0;
 
 ROI.N = 0; % number of regions of interest (N)
 ROI.Rects = []; % bounding rectangle
-ROI.Polys = {}; % TODO bounding polygon
-ROI.Images = {}; % rectangular threshold images
-ROI.Contours = {}; % binary contour
-ROI.Retracts = {}; % binary retract of the threshold via thinning
-ROI.Ends = {}; % head/tail inner endpoints
-ROI.Poles = {}; % poles from KymoNormals
-ROI.Extends = {}; % extended retracts from KymoNormals
-ROI.Normals = {}; % pixel coordinates for each segment; X by N cell
-ROI.YFPPixelMap = {};
-ROI.RedPixelMap = {};
-ROI.YFPDICMap = {};
-ROI.RedDICMap = {};
-ROI.YFPDICEnds = {};
-ROI.RedDICEnds = {};
-ROI.YFPFluorescenceFigures = {};
-ROI.RedFluorescenceFigures = {};
-ROI.YFPDICFigures = {};
-ROI.RedDICFigures = {};
+% ROI.Polys = {}; % TODO bounding polygon
+% ROI.Images = {}; % rectangular threshold images
+% ROI.Contours = {}; % binary contour
+% ROI.Retracts = {}; % binary retract of the threshold via thinning
+% ROI.Ends = {}; % head/tail inner endpoints
+% ROI.Poles = {}; % poles from KymoNormals
+% ROI.Extends = {}; % extended retracts from KymoNormals
+% ROI.Normals = {}; % pixel coordinates for each segment; X by N cell
+% ROI.YFPPixelMap = {};
+% ROI.RedPixelMap = {};
+% ROI.YFPDICMap = {};
+% ROI.RedDICMap = {};
+% ROI.YFPDICEnds = {};
+% ROI.RedDICEnds = {};
+% ROI.YFPFluorescenceFigures = {};
+% ROI.RedFluorescenceFigures = {};
+% ROI.YFPDICFigures = {};
+% ROI.RedDICFigures = {};
+ROI.DICPoint = {};
 ROI.DICRetract = {};
 ROI.DICMask = {};
 
@@ -187,15 +188,15 @@ GUI.PixelMapButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @PixelMapButton_Callback,...
   'Style', 'pushbutton',...
-  'String', 'Fluo Segment',...
-  'Position', [1080,360,80,20]);
+  'String', 'Fluorescence Segment',...
+  'Position', [1080,360,180,20]);
 
 GUI.DICPixelMapButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @DICFrameMap_Callback,... %@DICPixelMapButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'DIC Segment',...
-  'Position', [1080,330,80,20]);
+  'Position', [1080,330,180,20]);
 
 % GUI.DICFrameMapButton = uicontrol(...
 %   'Parent', GUI.f,...
@@ -323,7 +324,7 @@ end
 % Display an ROI border on the active axes
 function DisplayROIBorder(i)
   if i > 0 && i <= Display.Num
-    this_rect = ROI.Rects(1,4*i-3:4*i);
+    this_rect = ROI.Rects(i,:);
     rectangle('Position', this_rect);
     text('Position', this_rect(1:2)-10, 'String', num2str(i));
   end
@@ -508,7 +509,7 @@ end
 % threshold average, unlike "Fluo. Map" and "DIC Map". Instead, we generate
 % retracts from each frame, using DIC and fluorescence combined.
 % This is the one labeled "DIC Map 2".
-function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
+function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(i, x, y, w, h)
 
   roi_mask = {};
   roi_retract = {};
@@ -532,8 +533,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   col_size = 100;
 
   % Accept user input
-  axes(GUI.InputGraph);
-  innerpt = round(ginput(1));
+%   axes(GUI.InputGraph);
+%   innerpt = round(ginput(1));
+  innerpt = ROI.DICPoint(i,1:2);
   innerpt(1) = innerpt(1)-x+1;
   innerpt(2) = innerpt(2)-y+1;
 
@@ -541,7 +543,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
 %     [path name ext vrsn] = fileparts(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name));
 
-    fprintf('Analyzing %d/%d: %s\n', j, Metadata.NumYFPFiles, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name);
+    fprintf('Analyzing %d/%d (%d): %s\n', j, Metadata.NumYFPFiles, i, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name);
 
     % ---
     % The new method:
@@ -570,53 +572,40 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %     [h w]
 %     size(pre_mask)
 
-%     [pre_mask T] = iterthresh(pre_mask);
-%     pre_img = pre_img >= 0.9*T;
-    pre_mask = threshold(pre_mask, 300);
+    [asdf T] = iterthresh(pre_mask);
+    pre_mask = pre_mask >= 0.9*T;
+    pre_mask = bwareaopen(pre_mask, 300);
+%     pre_mask = threshold(pre_mask, 300);
+    pre_mask = bwmorph(pre_mask, 'erode', 2);
+    pre_mask = bwareaopen(pre_mask, 50);
 
-%     figure; imagesc(pre_img);
+%     figure; imagesc(pre_mask);
 
     % Find the nearest connected component
     cc = bwconncomp(pre_mask);
     index = 0;
+    norms = zeros(1,numel(cc.PixelIdxList));
     if j == 1
-      norms = zeros(1,numel(cc.PixelIdxList));
-      for k = 1:numel(cc.PixelIdxList)
-        pixels = cell2mat(cc.PixelIdxList(k));
-        U = ceil(pixels/w);
-        V = mod(pixels, h);
-        V(V == 0) = h;
-%         point = 512*(innerpt(1)-1)+innerpt(2);
-        norms(k) = (innerpt(1)-round(mean(U))).^2 + (innerpt(2)-round(mean(V))).^2;
-%         if numel(intersect(point, pixels)) > 0
-%           index = k;
-%         end
-      end
-      index = find(norms == min(norms));
+      centroid = innerpt;
     else
-      norms = zeros(1,numel(cc.PixelIdxList));
       centroid = [round(mean(U)) round(mean(V))];
-      for k = 1:numel(cc.PixelIdxList)
-        pixels = cell2mat(cc.PixelIdxList(k));
-        U = ceil(pixels/w);
-        V = mod(pixels, h);
-        V(V == 0) = h;
-        norms(k) = (centroid(1)-round(mean(U))).^2 + (centroid(2)-round(mean(V))).^2;
-      end
-      index = find(norms == min(norms));
     end
+    for k = 1:numel(cc.PixelIdxList)
+      pixels = cell2mat(cc.PixelIdxList(k));
+      U = ceil(pixels/w);
+      V = mod(pixels, h);
+      V(V == 0) = h;
+      norms(k) = (centroid(1)-round(mean(U))).^2 + (centroid(2)-round(mean(V))).^2;
+    end
+    index = find(norms == min(norms));
 
     % Generate a mask
     pixels = cell2mat(cc.PixelIdxList(index));
-    u = ceil(pixels/w);
-    v = mod(pixels, h);
-    v(v == 0) = h;
+    U = ceil(pixels/w);
+    V = mod(pixels, h);
+    V(V == 0) = h;
     mask = zeros(h,w);
-%     for k = 1:numel(pixels)
-%       mask(V(k)) = 1;
-%     end
-    for k = 1:numel(u)
-%       mask(v(k),u(k)) = 1;
+    for k = 1:numel(U)
       mask(pixels(k)) = 1;
     end
     mask = bwmorph(mask, 'spur');
@@ -627,16 +616,17 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %     w = max(U)-min(U)+1;
 %     h = max(V)-min(V)+1;
 
-%     figure; imagesc(mask);
+    figure; imagesc(mask);
 
-    mask = bwmorph(mask, 'erode');
-    mask = bwmorph(mask, 'erode');
+%     mask = bwmorph(mask, 'erode');
+%     mask = bwmorph(mask, 'erode');
 %     mask = mask.*pre_mask;
 %     size(mask)
 
     retract = bwmorph(mask, 'thin', Inf);
-    mask = bwmorph(mask, 'thicken', 3);
-    retract = bwmorph(mask, 'thin', Inf);
+    mask = bwmorph(mask, 'thicken', 2);
+%     mask = bwmorph(mask, 'thicken', 4);
+%     retract = bwmorph(mask, 'thin', Inf);
 %     ends = bwmorph(retract, 'endpoints');
 %     [v u] = find(ends > 0);
 
@@ -748,7 +738,6 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   figure; imagesc(yfp_map);
   figure; imagesc(red_map);
 
-  % TODO
   full_map = (yfp_map-min(yfp_map(:)))/(max(yfp_map(:))-min(yfp_map(:)))+(red_map-min(red_map(:)))/(max(red_map(:))-min(red_map(:)));
 %   full_map = yfp_map;
   n = Metadata.NumYFPFiles;
@@ -1203,7 +1192,7 @@ function CropButton_Callback(hObject, eventdata, handles)
   DisplayAllROIBorders();
   this_rect = getrect(GUI.OutputGraph);
   if this_rect ~= 0
-    ROI.Rects = [ROI.Rects this_rect];
+    ROI.Rects = [ROI.Rects; this_rect];
     ROI.N = ROI.N+1;
     UpdateField();
     DisplayROIBorder(ROI.N);
@@ -1235,7 +1224,7 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
   Display.Average = Display.OutputImage/num_files; %Display.Num;
   mask = threshold(Display.Average, Parameters.MinConnectedComponents);
   for i = 1:ROI.N
-    this_rect = ROI.Rects(1,4*i-3:4*i);
+    this_rect = ROI.Rects(i,:);
     x = round(this_rect(1));
     y = round(this_rect(2));
     w = round(this_rect(3));
@@ -1282,10 +1271,10 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
 
     num_pixels = length(normals);
     ROI.NumPixels = [ROI.NumPixels num_pixels];
-    x = round(ROI.Rects(4*i-3));
-    y = round(ROI.Rects(4*i-2));
-    w = round(ROI.Rects(4*i-1));
-    h = round(ROI.Rects(4*i));
+    x = round(ROI.Rects(i,1));
+    y = round(ROI.Rects(i,2));
+    w = round(ROI.Rects(i,3));
+    h = round(ROI.Rects(i,4));
 
 %    pixel_map = [];
 %    for j = 1:Metadata.NumYFPFiles
@@ -1367,13 +1356,13 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
   ROI.YFPDICFigures = {};
   ROI.RedDICFigures = {};
   for i = 1:ROI.N
-    x = round(ROI.Rects(4*i-3));
-    y = round(ROI.Rects(4*i-2));
-    w = round(ROI.Rects(4*i-1));
-    h = round(ROI.Rects(4*i));
+    x = round(ROI.Rects(i,1));
+    y = round(ROI.Rects(i,2));
+    w = round(ROI.Rects(i,3));
+    h = round(ROI.Rects(i,4));
 
     fprintf(1, 'Starting DIC pixel map...\n');
-    fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
+%     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
 
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.Normals1, Parameters.Normals2, 0);
@@ -1420,21 +1409,34 @@ end
 function DICFrameMap_Callback(hObject, eventdata, handles)
   % Find framewise retracts of a cell using correlation and edge detection
 %   i = 1;
+
+  ROI.DICPoint = [];
   ROI.DICRetract = {};
   ROI.DICMask = {};
+
+  % Get seed point input
+  for i = 1:ROI.N
+    axes(GUI.InputGraph);
+    fprintf(1, 'Select seed point for ROI %d...\n', i);
+    innerpt = round(ginput(1));
+    ROI.DICPoint = [ROI.DICPoint; innerpt];
+  end
+
+  fprintf(1, 'Done seed point selection.\n');
+
   for i = 1:ROI.N
 
-    x = round(ROI.Rects(4*i-3));
-    y = round(ROI.Rects(4*i-2));
-    w = round(ROI.Rects(4*i-1));
-    h = round(ROI.Rects(4*i));
+    x = round(ROI.Rects(i,1));
+    y = round(ROI.Rects(i,2));
+    w = round(ROI.Rects(i,3));
+    h = round(ROI.Rects(i,4));
 
     assert(Metadata.NumYFPFiles == Metadata.NumRedFiles);
-    fprintf(1, 'Starting DIC framewise map...\n');
-    fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/130*Metadata.NumYFPFiles));
+    fprintf(1, 'Starting DIC segmentation for ROI %d...\n', i);
+%     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/130*Metadata.NumYFPFiles));
     tic;
 
-    [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h);
+    [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(i, x, y, w, h);
 
     heads = round((yfp_heads+red_heads)/2);
     tails = round((yfp_tails+red_tails)/2);
@@ -1502,10 +1504,10 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    imagesc(pixel_map);
 %    title(strcat('Red/mCherry DIC/mean ROI', num2str(i)));
 
-    fprintf(1, 'Done.\n');
     toc;
 
   end
+  fprintf(1, 'Done DIC segmentation.\n');
 end
 
 % ---
@@ -1526,10 +1528,10 @@ function SaveButton_Callback(hObject, eventdata, handles)
 %  fprintf(summary, '</title>\n</head>\n<body>\n');
   overview_image = Display.Average;
   for i = 1:ROI.N
-    x = round(ROI.Rects(4*i-3));
-    y = round(ROI.Rects(4*i-2));
-    w = round(ROI.Rects(4*i-1));
-    h = round(ROI.Rects(4*i));
+    x = round(ROI.Rects(i,1));
+    y = round(ROI.Rects(i,2));
+    w = round(ROI.Rects(i,3));
+    h = round(ROI.Rects(i,4));
     fprintf(readme, 'ROI %d: [%d %d %d %d]\n', i, x, y, w, h);
     overview_image(y,x:x+w-1) = 0;
     overview_image(y+h-1,x:x+w-1) = 0;
