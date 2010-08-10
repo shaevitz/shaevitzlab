@@ -71,6 +71,8 @@ ROI.YFPFluorescenceFigures = {};
 ROI.RedFluorescenceFigures = {};
 ROI.YFPDICFigures = {};
 ROI.RedDICFigures = {};
+ROI.DICRetract = {};
+ROI.DICMask = {};
 
 Display.InputIndex = 0;
 Display.InputImage = 0;
@@ -508,6 +510,9 @@ end
 % This is the one labeled "DIC Map 2".
 function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
 
+  roi_mask = {};
+  roi_retract = {};
+
   circle10 = double(imread('circle10.png', 'PNG'));
   circle10 = circle10/max(circle10(:));
 
@@ -534,9 +539,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
   for j = 1:Metadata.NumYFPFiles
 
-    [path name ext vrsn] = fileparts(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name));
+%     [path name ext vrsn] = fileparts(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name));
 
-    fprintf('Analyzing %d/%d: %s\n', j, Metadata.NumYFPFiles, strcat(name, '.preprocessed.tif'));
+    fprintf('Analyzing %d/%d: %s\n', j, Metadata.NumYFPFiles, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name);
 
     % ---
     % The new method:
@@ -558,7 +563,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 
     % Over-threshold the preprocessed image mask a little to distinguish
     % contiguous cells
-    pre_img = double(imread(fullfile(Metadata.Directory, strcat(name, '.preprocessed.tif')), 'TIFF'));
+    pre_img = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name), 'TIFF'));
 %     pre_img = pre_img./max(pre_img(:));
     pre_mask = pre_img(y:y+h-1,x:x+w-1);
 
@@ -662,6 +667,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     ends = bwmorph(retract, 'endpoints');
     [v u] = find(ends > 0);
 
+    roi_mask = [roi_mask; mask];
+    roi_retract = [roi_retract; retract];
+
 %     figure; imagesc(mask+retract+ends);
 
 %     if length(u) ~= 2
@@ -728,6 +736,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     red_lengths = [red_lengths tail-head+1];
 
   end
+
+  ROI.DICMask = [ROI.DICMask roi_mask];
+  ROI.DICRetract = [ROI.DICRetract roi_retract];
 
   yfp_length = min(yfp_lengths);
   red_length = min(red_lengths);
@@ -1125,7 +1136,7 @@ function LoadStackButton_Callback(hObject, eventdata, handles)
 
     Metadata.YFPFiles = dir(strcat(Metadata.Directory, '/*_YFP.tif*'));
     Metadata.RedFiles = dir(strcat(Metadata.Directory, '/*_Red.tif*'));
-    Metadata.DICFiles = dir(strcat(Metadata.Directory, '/*_DIC.tif*'));
+    Metadata.DICFiles = dir(strcat(Metadata.Directory, '/*_DIC.preprocessed.tif*'));
     Metadata.NumYFPFiles = length(Metadata.YFPFiles);
     Metadata.NumRedFiles = length(Metadata.RedFiles);
     Metadata.NumDICFiles = length(Metadata.DICFiles);
@@ -1409,6 +1420,8 @@ end
 function DICFrameMap_Callback(hObject, eventdata, handles)
   % Find framewise retracts of a cell using correlation and edge detection
 %   i = 1;
+  ROI.DICRetract = {};
+  ROI.DICMask = {};
   for i = 1:ROI.N
 
     x = round(ROI.Rects(4*i-3));
@@ -1431,9 +1444,10 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     for j = 1:length(yfp_tails)
       pixel_map = [pixel_map yfp_map(yfp_heads(j):yfp_tails(j),j)];
     end
-    figure;
+    temp = figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP DIC/YFP ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('yfp_dic_', num2str(i), '.png')), 'png');
 
     yfp_map = pixel_map;
 
@@ -1458,18 +1472,19 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     for j = 1:length(red_tails)
       pixel_map = [pixel_map red_map(red_heads(j):red_tails(j),j)];
     end
-    figure;
+    temp = figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry DIC/Red ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('red_dic_', num2str(i), '.png')), 'png');
 
     red_map = pixel_map;
 
-    pixel_map(:,:,1) = red_map/max(red_map(:));
-    pixel_map(:,:,2) = yfp_map/max(yfp_map(:));
-    pixel_map(:,:,3) = 0;
-%     pixel_map = pixel_map.*(pixel_map > 0.5);
-    figure;
-    image(pixel_map);
+%     pixel_map(:,:,1) = red_map/max(red_map(:));
+%     pixel_map(:,:,2) = yfp_map/max(yfp_map(:));
+%     pixel_map(:,:,3) = 0;
+% %     pixel_map = pixel_map.*(pixel_map > 0.5);
+%     figure;
+%     image(pixel_map);
 
 %    pixel_map = [];
 %    for j = 1:length(heads)
